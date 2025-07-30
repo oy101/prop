@@ -1,13 +1,10 @@
 | tstats summariesonly=true allow_old_summaries=true 
   count from datamodel=Risk.Analysis 
-  where (Risk.analytic_tactic="Initial Access" OR Risk.analytic_tactic="Persistence") 
-  by _time, Risk.risk_object, Risk.risk_object_type, Risk.analytic_tactic, Risk.analytic_id, Risk.risk_score
+  where Risk.analytic_rule IN ("CVE Activity with Public Exposure", "Malware Events with Anomalous Process Behavior") 
+  by _time, Risk.risk_object, Risk.risk_object_type, Risk.analytic_rule, Risk.risk_score
 | stats 
-    dc(Risk.analytic_tactic) as num_tactics 
+    dc(Risk.analytic_rule) as alert_count 
+    values(Risk.analytic_rule) as triggered_alerts 
     sum(Risk.risk_score) as total_risk 
-    values(Risk.analytic_tactic) as tactics 
-    values(Risk.analytic_id) as analytics 
     by Risk.risk_object, Risk.risk_object_type
-| where Risk.risk_object_type="user" 
-  AND num_tactics>=2 
-  AND total_risk>=80
+| where alert_count >= 2 AND total_risk >= 80
