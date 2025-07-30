@@ -1,10 +1,20 @@
 | tstats summariesonly=true allow_old_summaries=true 
   count from datamodel=Risk.Analysis 
-  where Risk.analytic_rule IN ("CVE Activity with Public Exposure", "Malware Events with Anomalous Process Behavior") 
+  where Risk.analytic_rule IN ("Cleartext PAN in Logs or Output", "Privileged Access Anomaly", "Unexpected Privilege Escalation") 
   by _time, Risk.risk_object, Risk.risk_object_type, Risk.analytic_rule, Risk.risk_score
+
+| lookup asset_lookup_by_str as Risk.risk_object OUTPUT priority asset_category
+| lookup identity_lookup_expanded as Risk.risk_object OUTPUT user_category identity_tags
+
+| eval is_privileged_entity = if(user_category="privileged" OR match(identity_tags, "admin"), 1, 0)
+| eval is_critical_asset = if(priority="critical" OR asset_category="PCI", 1, 0)
+
 | stats 
-    dc(Risk.analytic_rule) as alert_count 
+    dc(Risk.analytic_rule) as matched_alerts 
     values(Risk.analytic_rule) as triggered_alerts 
     sum(Risk.risk_score) as total_risk 
+    max(is_privileged_entity) as privileged_user 
+    max(is_critical_asset) as critical_asset 
     by Risk.risk_object, Risk.risk_object_type
-| where alert_count >= 2 AND total_risk >= 80
+
+| where matched_alerts >= 2 AND total_risk >= 80 AND (privileged_user=1 OR critical_asset=1)
